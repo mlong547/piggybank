@@ -32,7 +32,8 @@ public class TransactionController {
         .flatMap(transactionService::findById)
         .map(this::convertFromEntity)
         .flatMap(transaction -> ServerResponse.ok().bodyValue(transaction))
-        .switchIfEmpty(ServerResponse.notFound().build());
+        .switchIfEmpty(ServerResponse.notFound().build())
+        .onErrorResume(this::errorHandler);
     }
 
     public Mono<ServerResponse> list(ServerRequest req) {
@@ -42,14 +43,16 @@ public class TransactionController {
             .findAllByUserID("testUser")
             .map(this::convertFromEntity)
             .collectList()
-            .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions));
+            .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions))
+            .onErrorResume(this::errorHandler);
         }
 
         return this.transactionService
         .findAllByUserID("testUser")
         .map(this::convertFromEntity)
         .collectList()
-        .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions));
+        .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions))
+        .onErrorResume(this::errorHandler);
     }
 
     public Mono<ServerResponse> create(ServerRequest req) {
@@ -60,6 +63,14 @@ public class TransactionController {
         .flatMap(this.transactionService::save)
         .map(this::convertFromEntity)
         .flatMap(transaction -> ServerResponse.accepted().contentType(MediaType.APPLICATION_JSON).bodyValue(transaction))
+        .onErrorResume(this::errorHandler);
+    }
+
+    public Mono<ServerResponse> delete(ServerRequest req) {
+        return Mono.just(req.pathVariable("id"))
+        .map(Integer::parseInt)
+        .flatMap(this.transactionService::delete)
+        .flatMap(_unused -> ServerResponse.ok().build())
         .onErrorResume(this::errorHandler);
     }
 
@@ -78,6 +89,7 @@ public class TransactionController {
         t.setName(transactionEntity.getName());
         t.setVersion(transactionEntity.getVersion());
         t.setId(transactionEntity.getId());
+        t.setTags(transactionEntity.getTags());
         return t;
     }
 
@@ -88,6 +100,7 @@ public class TransactionController {
         e.setName(transaction.getName());
         e.setUserID("testUser");
         e.setVersion(transaction.getVersion());
+        e.setTags(transaction.getTags());
         return e;
     }
 
