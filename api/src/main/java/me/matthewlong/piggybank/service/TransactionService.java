@@ -65,7 +65,7 @@ public class TransactionService {
         })
         .flatMap(tagEntity -> {
             return this.tagRepository.findOneByName(tagEntity.getName())
-            .switchIfEmpty(this.tagRepository.save(tagEntity));
+            .switchIfEmpty(Mono.defer(() -> this.tagRepository.save(tagEntity)));
         })
         .collectList()
         .flatMap(tagEntities -> {
