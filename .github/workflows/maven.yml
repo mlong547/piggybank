@@ -16,6 +16,9 @@ on:
 
 jobs:
   build:
+    defaults:
+      run:
+        working-directory: ./api
 
     runs-on: ubuntu-latest
 
@@ -28,7 +31,7 @@ jobs:
         distribution: 'microsoft'
         cache: maven
     - name: Build with Maven
-      run: mvn -B verify --file api/pom.xml
+      run: mvn -B verify --file pom.xml
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
