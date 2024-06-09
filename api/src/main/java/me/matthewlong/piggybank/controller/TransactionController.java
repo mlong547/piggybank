@@ -18,38 +18,41 @@ import me.matthewlong.piggybank.api.ErrorResponse;
 import me.matthewlong.piggybank.api.TransactionRequest;
 import me.matthewlong.piggybank.api.TransactionResponse;
 import me.matthewlong.piggybank.repository.TransactionEntity;
-import me.matthewlong.piggybank.repository.TransactionRepository;
+import me.matthewlong.piggybank.service.TransactionService;
 import reactor.core.publisher.Mono;
 
 @Component
 public class TransactionController {
     @Autowired private Validator validator;
-    @Autowired private TransactionRepository transactionRepository;
+    @Autowired private TransactionService transactionService;
     
     public Mono<ServerResponse> get(ServerRequest req) {
         return Mono.just(req.pathVariable("id"))
         .map(Integer::parseInt)
-        .flatMap(transactionRepository::findById)
+        .flatMap(transactionService::findById)
         .map(this::convertFromEntity)
         .flatMap(transaction -> ServerResponse.ok().bodyValue(transaction))
-        .switchIfEmpty(ServerResponse.notFound().build());
+        .switchIfEmpty(ServerResponse.notFound().build())
+        .onErrorResume(this::errorHandler);
     }
 
     public Mono<ServerResponse> list(ServerRequest req) {
         List<String> tags = req.queryParams().get("tag");
         if (tags == null || tags.size() == 0) {
-            return this.transactionRepository
+            return this.transactionService
             .findAllByUserID("testUser")
             .map(this::convertFromEntity)
             .collectList()
-            .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions));
+            .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions))
+            .onErrorResume(this::errorHandler);
         }
 
-        return this.transactionRepository
+        return this.transactionService
         .findAllByUserID("testUser")
         .map(this::convertFromEntity)
         .collectList()
-        .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions));
+        .flatMap(transactions -> ServerResponse.ok().bodyValue(transactions))
+        .onErrorResume(this::errorHandler);
     }
 
     public Mono<ServerResponse> create(ServerRequest req) {
@@ -57,20 +60,18 @@ public class TransactionController {
         .single()
         .map(this::validate)
         .map(this::convertToEntity)
-        .flatMap(this.transactionRepository::save)
+        .flatMap(this.transactionService::save)
         .map(this::convertFromEntity)
         .flatMap(transaction -> ServerResponse.accepted().contentType(MediaType.APPLICATION_JSON).bodyValue(transaction))
-        .onErrorResume(throwable -> {
-            if (throwable instanceof NoSuchElementException) {
-                return ServerResponse.badRequest().build();
-            } else if (throwable instanceof ServerWebInputException) {
-                ErrorResponse err = new ErrorResponse();
-                err.setErrorMessage(throwable.getMessage());
-                return ServerResponse.badRequest().contentType(MediaType.APPLICATION_JSON).bodyValue(err);
-            }
-            throwable.printStackTrace(); // TODO: log this with a logger
-            return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        });
+        .onErrorResume(this::errorHandler);
+    }
+
+    public Mono<ServerResponse> delete(ServerRequest req) {
+        return Mono.just(req.pathVariable("id"))
+        .map(Integer::parseInt)
+        .flatMap(this.transactionService::delete)
+        .flatMap(_unused -> ServerResponse.ok().build())
+        .onErrorResume(this::errorHandler);
     }
 
     private TransactionRequest validate(TransactionRequest transaction) {
@@ -88,6 +89,7 @@ public class TransactionController {
         t.setName(transactionEntity.getName());
         t.setVersion(transactionEntity.getVersion());
         t.setId(transactionEntity.getId());
+        t.setTags(transactionEntity.getTags());
         return t;
     }
 
@@ -98,10 +100,23 @@ public class TransactionController {
         e.setName(transaction.getName());
         e.setUserID("testUser");
         e.setVersion(transaction.getVersion());
+        e.setTags(transaction.getTags());
         return e;
     }
 
     private TransactionEntity convertToEntity(TransactionRequest transaction) {
         return this.convertToEntity(transaction, null);
+    }
+
+    private Mono<ServerResponse> errorHandler(Throwable throwable) {
+        if (throwable instanceof NoSuchElementException) {
+            return ServerResponse.badRequest().build();
+        } else if (throwable instanceof ServerWebInputException) {
+            ErrorResponse err = new ErrorResponse();
+            err.setErrorMessage(throwable.getMessage());
+            return ServerResponse.badRequest().contentType(MediaType.APPLICATION_JSON).bodyValue(err);
+        }
+        throwable.printStackTrace(); // TODO: log this with a logger
+        return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
 }
