@@ -15,10 +15,14 @@ on:
     branches: [ "main" ]
 
 jobs:
+    
   build:
     defaults:
       run:
         working-directory: ./api
+
+    permissions:
+      contents: write
 
     runs-on: ubuntu-latest
 
